@@ -1,151 +1,110 @@
-<?php
-session_start();
-$adminPass = '123456'; // 请修改此后台登录密码
-$dataFile = 'data.json';
-
-if (!is_dir('uploads')) { mkdir('uploads', 0755, true); }
-$data = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : ['line_url' => '', 'pixel_code' => '', 'profiles' => []];
-
-// 登录验证
-if (isset($_POST['login_pass'])) {
-    if ($_POST['login_pass'] === $adminPass) { $_SESSION['logged_in'] = true; }
-    else { $error = "密码错误"; }
-}
-if (isset($_GET['logout'])) { session_destroy(); header("Location: admin.php"); exit; }
-
-if (empty($_SESSION['logged_in'])):
-?>
-<!DOCTYPE html>
-<html lang="zh">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>后台登录</title></head>
-<body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f0f2f5;">
-    <form method="post" style="background:#fff;padding:30px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);width:300px;">
-        <h3 style="margin-bottom:15px;">交友网站后台登录</h3>
-        <?php if(!empty($error)) echo "<p style='color:red;font-size:13px;'>$error</p>"; ?>
-        <input type="password" name="login_pass" placeholder="请输入后台密码" required style="width:100%;padding:10px;margin-bottom:15px;border:1px solid #ddd;border-radius:5px;box-sizing:border-box;">
-        <button type="submit" style="width:100%;padding:10px;background:#06C755;color:#fff;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">登录</button>
-    </form>
-</body>
-</html>
-<?php exit; endif;
-
-// 保存全局设置（LINE链接 & Pixel代码）
-if (isset($_POST['save_settings'])) {
-    $data['line_url'] = $_POST['line_url'];
-    $data['pixel_code'] = $_POST['pixel_code'];
-    file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    $msg = "全局设置已保存！";
-}
-
-// 添加女性资料
-if (isset($_POST['add_profile']) && isset($_FILES['photo'])) {
-    $ext = pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION);
-    $fileName = 'uploads/' . time() . '_' . rand(100,999) . '.' . $ext;
-    if (move_uploaded_file($_FILES['photo']['tmp_name'], $fileName)) {
-        $data['profiles'][] = [
-            'id' => uniqid(),
-            'name' => $_POST['name'],
-            'age' => $_POST['age'],
-            'location' => $_POST['location'],
-            'job' => $_POST['job'],
-            'bio' => $_POST['bio'],
-            'photo' => $fileName
-        ];
-        file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-        $msg = "资料发布成功！";
-    }
-}
-
-// 删除资料
-if (isset($_GET['delete'])) {
-    $delId = $_GET['delete'];
-    foreach ($data['profiles'] as $k => $v) {
-        if ($v['id'] === $delId) {
-            if (file_exists($v['photo'])) unlink($v['photo']);
-            unset($data['profiles'][$k]);
-        }
-    }
-    $data['profiles'] = array_values($data['profiles']);
-    file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    header("Location: admin.php"); exit;
-}
-?>
 <!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交友网站管理后台</title>
+    <title>静态网站后台配置生成器</title>
+    <script src="data.js"></script>
     <style>
         body { font-family: sans-serif; background: #f4f6f8; margin: 0; padding: 20px; }
         .box { max-width: 800px; margin: 0 auto 20px; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         h2 { margin-top: 0; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        input, textarea { width: 100%; padding: 10px; margin: 8px 0 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { background: #007bff; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .item { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; padding: 10px 0; }
-        .item img { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; margin-right: 12px; }
-        .del-btn { background: #dc3545; color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; }
+        input, textarea { width: 100%; padding: 10px; margin: 6px 0 14px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { background: #007bff; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; }
+        .del-btn { background: #dc3545; padding: 6px 12px; font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h2>⚙️ 1. 引流与广告设置</h2>
-        <a href="?logout=1" style="color:#666;font-size:13px;">退出登录</a>
-    </div>
-    <?php if(!empty($msg)) echo "<p style='color:green;font-weight:bold;'>$msg</p>"; ?>
-    <form method="post">
-        <label>LINE 跳转链接（例如：https://line.me）</label>
-        <input type="text" name="line_url" value="<?php echo htmlspecialchars($data['line_url']); ?>" required>
-        
-        <label>TikTok / Facebook 像素统计代码（直接粘贴官方给的 &lt;script&gt; 代码）</label>
-        <textarea name="pixel_code" rows="4" placeholder="粘贴 TikTok Pixel 或 Meta Pixel 代码..."><?php echo htmlspecialchars($data['pixel_code']); ?></textarea>
-        
-        <button type="submit" name="save_settings" style="background:#06C755;">保存全局设置</button>
-    </form>
+    <h2>⚙️ 1. 引流链接与像素 ID 设置</h2>
+    <label>LINE 跳转链接</label>
+    <input type="text" id="lineUrl" placeholder="https://line.me">
+    <label>TikTok Pixel ID（纯数字/字母ID，留空则不启用）</label>
+    <input type="text" id="tiktokPixelId" placeholder="例如：C1234567890ABCDEF">
+    <label>Facebook (Meta) Pixel ID（纯数字ID，留空则不启用）</label>
+    <input type="text" id="fbPixelId" placeholder="例如：123456789012345">
 </div>
 
 <div class="box">
-    <h2>➕ 2. 发布新女性资料（建议填写韩文）</h2>
-    <form method="post" enctype="multipart/form-data">
-        <label>上传照片</label>
-        <input type="file" name="photo" accept="image/*" required>
-        
-        <label>韩文昵称（例如：지민, 수진）</label>
-        <input type="text" name="name" placeholder="예: 지민" required>
-        
-        <label>年龄</label>
-        <input type="number" name="age" placeholder="예: 25" required>
-        
-        <label>所在地区（例如：서울 강남, 부산）</label>
-        <input type="text" name="location" placeholder="예: 서울 강남" required>
-        
-        <label>职业（例如：필라테스 강사, 디자이너）</label>
-        <input type="text" name="job" placeholder="예: 프리랜서" required>
-        
-        <label>韩文个性签名 / 自我介绍</label>
-        <textarea name="bio" rows="2" placeholder="예: 주말에 같이 카페 가고 편하게 대화할 친구 찾아요 :)" required></textarea>
-        
-        <button type="submit" name="add_profile">立即发布到首页</button>
-    </form>
+    <h2>➕ 2. 添加新女性资料</h2>
+    <label>照片路径（请将照片放入 images 文件夹，此处填写文件名，如 images/3.jpg）</label>
+    <input type="text" id="pPhoto" placeholder="images/3.jpg">
+    <label>韩文昵称</label>
+    <input type="text" id="pName" placeholder="예: 하은">
+    <label>年龄</label>
+    <input type="text" id="pAge" placeholder="예: 26">
+    <label>所在地区</label>
+    <input type="text" id="pLoc" placeholder="예: 부산 해운대">
+    <label>职业</label>
+    <input type="text" id="pJob" placeholder="예: 승무원">
+    <label>韩文自我介绍</label>
+    <textarea id="pBio" rows="2" placeholder="예: 좋은 인연 만들고 싶어요 :)"></textarea>
+    <button onclick="addProfile()">添加到下方列表</button>
 </div>
 
 <div class="box">
-    <h2>📋 3. 已发布资料列表</h2>
-    <?php foreach (array_reverse($data['profiles']) as $p): ?>
-        <div class="item">
-            <div style="display:flex;align-items:center;">
-                <img src="<?php echo htmlspecialchars($p['photo']); ?>">
-                <div>
-                    <strong><?php echo htmlspecialchars($p['name']); ?> (<?php echo htmlspecialchars($p['age']); ?>세)</strong> - <?php echo htmlspecialchars($p['location']); ?><br>
-                    <small style="color:#666;"><?php echo htmlspecialchars($p['bio']); ?></small>
-                </div>
-            </div>
-            <a href="?delete=<?php echo $p['id']; ?>" class="del-btn" onclick="return confirm('确定删除吗？')">删除</a>
-        </div>
-    <?php endforeach; ?>
+    <h2>📋 3. 当前资料列表</h2>
+    <div id="list"></div>
 </div>
 
+<div class="box" style="background:#e8f5e9;border:1px solid #06C755;">
+    <h2>🚀 4. 一键生成并导出 data.js</h2>
+    <p style="font-size:13px;color:#333;margin-bottom:10px;">修改完成后点击下方按钮下载最新的 <strong>data.js</strong>，上传覆盖到 GitHub 仓库即可全站生效。</p>
+    <button style="background:#06C755;font-size:16px;" onclick="downloadDataJs()">下载最新 data.js 文件</button>
+</div>
+
+<script>
+    let currentData = typeof SITE_DATA !== 'undefined' ? JSON.parse(JSON.stringify(SITE_DATA)) : { lineUrl: '', tiktokPixelId: '', fbPixelId: '', profiles: [] };
+    document.getElementById('lineUrl').value = currentData.lineUrl;
+    document.getElementById('tiktokPixelId').value = currentData.tiktokPixelId;
+    document.getElementById('fbPixelId').value = currentData.fbPixelId;
+
+    function renderList() {
+        const list = document.getElementById('list');
+        list.innerHTML = '';
+        currentData.profiles.forEach((p, idx) => {
+            list.innerHTML += `<div class="item">
+                <div><strong>${p.name} (${p.age}세)</strong> · ${p.location} · 图片: ${p.photo}<br><small style="color:#666;">${p.bio}</small></div>
+                <button class="del-btn" onclick="delProfile(${idx})">删除</button>
+            </div>`;
+        });
+    }
+    renderList();
+
+    function addProfile() {
+        const photo = document.getElementById('pPhoto').value.trim();
+        const name = document.getElementById('pName').value.trim();
+        if (!photo || !name) return alert('请至少填写照片路径和昵称');
+        currentData.profiles.unshift({
+            name: name,
+            age: document.getElementById('pAge').value.trim() || '24',
+            location: document.getElementById('pLoc').value.trim() || '서울',
+            job: document.getElementById('pJob').value.trim() || '프리랜서',
+            bio: document.getElementById('pBio').value.trim() || '반가워요!',
+            photo: photo
+        });
+        renderList();
+        document.getElementById('pPhoto').value = ''; document.getElementById('pName').value = ''; document.getElementById('pBio').value = '';
+    }
+
+    function delProfile(idx) {
+        currentData.profiles.splice(idx, 1);
+        renderList();
+    }
+
+    function downloadDataJs() {
+        currentData.lineUrl = document.getElementById('lineUrl').value.trim();
+        currentData.tiktokPixelId = document.getElementById('tiktokPixelId').value.trim();
+        currentData.fbPixelId = document.getElementById('fbPixelId').value.trim();
+        const content = "const SITE_DATA = " + JSON.stringify(currentData, null, 4) + ";";
+        const blob = new Blob([content], { type: "application/javascript;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "data.js";
+        a.click();
+    }
+</script>
 </body>
 </html>
